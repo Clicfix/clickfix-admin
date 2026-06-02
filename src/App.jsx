@@ -37,7 +37,7 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [selLead, setSelLead] = useState(null);  const [selLead, setSelLead] = useState(null);
+  const [selLead, setSelLead] = useState(null);
   function notify(msg, type) {
     setToast({ msg, type: type || "ok" });
     setTimeout(() => setToast(null), 3500);
