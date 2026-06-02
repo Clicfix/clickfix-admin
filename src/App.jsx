@@ -37,7 +37,7 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-
+  const [selLead, setSelLead] = useState(null);  const [selLead, setSelLead] = useState(null);
   function notify(msg, type) {
     setToast({ msg, type: type || "ok" });
     setTimeout(() => setToast(null), 3500);
@@ -255,7 +255,7 @@ export default function App() {
               {leads.length === 0
                 ? <div style={{ ...card, textAlign: "center", padding: 40, color: "rgba(255,255,255,0.3)" }}>Aucun lead</div>
                 : leads.map(l => (
-                  <div key={l.id} style={card}>
+                  <div key={l.id} style={{...card,cursor:"pointer"}} onClick={()=>setSelLead(l)}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                       <div>
                         <div style={{ fontWeight: 800, fontSize: 15 }}>{l.client_nom}</div>
@@ -266,7 +266,7 @@ export default function App() {
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
                         <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 99, background: l.assigned_to ? "rgba(34,197,94,0.15)" : "rgba(251,192,5,0.15)", color: l.assigned_to ? "#22c55e" : "#FBC005" }}>
-                          {l.assigned_to ? (pros.find(x=>x.id===l.assigned_to)?.prenom||"Assigne") : "En attente"}
+                          {l.assigned_to ? "Assigne" : "En attente"}
                         </span>
                         {!l.assigned_to && pros.filter(p => p.statut_paiement !== "bloque" && (p.rdv_restants || 0) > 0).length > 0 && (
                           <select onChange={e => e.target.value && assignLead(l.id, e.target.value)} style={{ ...inp, width: "auto", fontSize: 12, padding: "6px 10px" }} defaultValue="">
@@ -283,7 +283,7 @@ export default function App() {
               }
             </div>
           )}
-
+          {selLead && <div style={{position:"fixed",top:0,right:0,width:400,height:"100vh",background:"#0d0f1a",borderLeft:"1px solid rgba(255,255,255,0.08)",zIndex:9999,overflow:"auto",padding:24}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}><h3 style={{color:"#fff",margin:0}}>Detail du lead</h3><button onClick={()=>setSelLead(null)} style={{background:"transparent",border:"none",color:"#fff",fontSize:20,cursor:"pointer"}}>x</button></div></div>}
           {tab === "impayes" && (
             <div>
               <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Impayes ({impayes.length})</h2>
