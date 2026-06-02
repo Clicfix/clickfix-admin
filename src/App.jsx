@@ -87,11 +87,20 @@ export default function App() {
       const travaux=(lead.travaux||"").toLowerCase();
       const creneaux=JSON.parse(lead.creneaux||"[]");
       const nbArtisans=parseInt((lead.nb_artisans||"3"))||3;
+      // Geocode lead address
+      let leadLat=null,leadLon=null;
+      try{
+        const geoRes=await fetch("https://www.click-fix.fr/api/geocode",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:(lead.ville||lead.adresse||"")})});
+        const geoData=await geoRes.json();
+        if(geoData.lat){leadLat=geoData.lat;leadLon=geoData.lon;}
+      }catch(e){}
       const matching=pros.filter(p=>{
         if(p.statut_paiement==="bloque")return false;
         if((p.rdv_restants||0)<=0)return false;
         if(!p.specialites||p.specialites.length===0)return true;
-        return p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]));
+        const specOk=p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]));
+        if(!specOk)return false;
+        return true;
       });
       const avail=matching.length>0?matching:pros.filter(p=>p.statut_paiement!=="bloque"&&(p.rdv_restants||0)>0);
       const toSend=avail.slice(0,Math.min(nbArtisans,avail.length));
