@@ -93,7 +93,7 @@ export default function App() {
         if(p.statut_paiement==="bloque")return false;
         if((p.rdv_restants||0)<=0)return false;
         if(!p.specialites||p.specialites.length===0)return true;
-        return p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]))&&(!p.lat||!lead.lat||haversine(p.lat,p.lon,lead.lat,lead.lon)<=parseInt((p.rayon||"999").replace(/[^0-9]/g,""))||999);
+        return p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]))&&(!p.lat||!lead.lat||haversine(p.lat,p.lon,lead.lat,lead.lon)<=parseInt((p.rayon||"999").replace(/[^0-9]/g,"")));
       });
       const avail=matching.length>0?matching:pros.filter(p=>p.statut_paiement!=="bloque"&&(p.rdv_restants||0)>0);
       const toSend=avail.slice(0,Math.min(nbArtisans,avail.length));
