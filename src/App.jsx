@@ -266,7 +266,7 @@ export default function App() {
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
                         <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 99, background: l.assigned_to ? "rgba(34,197,94,0.15)" : "rgba(251,192,5,0.15)", color: l.assigned_to ? "#22c55e" : "#FBC005" }}>
-                          {l.assigned_to ? "Assigne" : "En attente"}
+                          {l.assigned_to ? (pros.find(x=>x.id===l.assigned_to)?.prenom||"Assigne") : "En attente"}
                         </span>
                         {!l.assigned_to && pros.filter(p => p.statut_paiement !== "bloque" && (p.rdv_restants || 0) > 0).length > 0 && (
                           <select onChange={e => e.target.value && assignLead(l.id, e.target.value)} style={{ ...inp, width: "auto", fontSize: 12, padding: "6px 10px" }} defaultValue="">
