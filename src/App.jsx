@@ -78,6 +78,8 @@ export default function App() {
     notify("RDV assigne");
   }
 
+  function haversine(lat1,lon1,lat2,lon2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+  function haversine(lat1,lon1,lat2,lon2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
   async function runDispatch() {
     setLoading(true);
     const unas=leads.filter(l=>!l.assigned_to&&l.statut==="en attente");
@@ -91,7 +93,7 @@ export default function App() {
         if(p.statut_paiement==="bloque")return false;
         if((p.rdv_restants||0)<=0)return false;
         if(!p.specialites||p.specialites.length===0)return true;
-        return p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]));
+        return p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]))&&(!p.lat||!lead.lat||haversine(p.lat,p.lon,lead.lat,lead.lon)<=parseInt((p.rayon||"999").replace(/[^0-9]/g,""))||999);
       });
       const avail=matching.length>0?matching:pros.filter(p=>p.statut_paiement!=="bloque"&&(p.rdv_restants||0)>0);
       const toSend=avail.slice(0,Math.min(nbArtisans,avail.length));
