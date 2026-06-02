@@ -94,7 +94,7 @@ export default function App() {
         if(!p.specialites||p.specialites.length===0)return true;
         const specOk=p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]));if(!specOk)return false;if(p.lat&&lead.lat){const dist=haversine(p.lat,p.lon,lead.lat,lead.lon);const rayon=parseInt((p.rayon||"50").replace(/[^0-9]/g,""));if(dist>rayon)return false;}return true;;
       });
-      const avail=matching.length>0?matching:pros.filter(p=>p.statut_paiement!=="bloque"&&(p.rdv_restants||0)>0);
+      const avail=matching;
       const toSend=avail.slice(0,Math.min(nbArtisans,avail.length));
       for(let i=0;i<toSend.length;i++){
         const pro=toSend[i];
