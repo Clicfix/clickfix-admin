@@ -100,6 +100,7 @@ export default function App() {
         const creneau=creneaux[i%Math.max(creneaux.length,1)]||{label:"Sur RDV"};
         await sb.patch("leads",lead.id,{assigned_to:pro.id,statut:"dispatche",heure:creneau.label});
         await sb.patch("profiles",pro.id,{rdv_restants:Math.max(0,(pro.rdv_restants||1)-1)});
+        if(pro.email){fetch("https://www.click-fix.fr/api/send-email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"new_lead_pro",to:pro.email,data:{prenom:pro.prenom||"",travaux:lead.travaux||"",surface:lead.surface||"",budget:lead.budget||"",ville:lead.adresse||"",creneau:creneau.label||"Sur RDV"}})}).catch(console.log);}
         count++;
       }
     }
