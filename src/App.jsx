@@ -38,6 +38,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [selLead, setSelLead] = useState(null);
+  const [leadFilter, setLeadFilter] = useState("all");
+
   function notify(msg, type) {
     setToast({ msg, type: type || "ok" });
     setTimeout(() => setToast(null), 3500);
@@ -79,40 +81,83 @@ export default function App() {
   }
 
   function haversine(lat1,lon1,lat2,lon2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180;const dLon=(lon2-lon1)*Math.PI/180;const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
-  async function runDispatch() {
-    setLoading(true);
-    const unas=leads.filter(l=>!l.assigned_to&&l.statut==="en attente");
-    if(unas.length===0){notify("Aucun lead a dispatcher","err");setLoading(false);return;}
-    let count=0;
-    for(const lead of unas){
-      const travaux=(lead.travaux||"").toLowerCase();
-      const creneaux=JSON.parse(lead.creneaux||"[]");
-      const nbArtisans=parseInt((lead.nb_artisans||"3"))||3;
-      const matching=pros.filter(p=>{
-        if(p.statut_paiement==="bloque")return false;
-        if((p.rdv_restants||0)<=0)return false;
-        if(!p.specialites||p.specialites.length===0)return true;
-        const specOk=p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]));if(!specOk)return false;if(p.lat&&lead.lat){const dist=haversine(p.lat,p.lon,lead.lat,lead.lon);const rayon=parseInt((p.rayon||"50").replace(/[^0-9]/g,""));if(dist>rayon)return false;}return true;;
-      });
+  async function runDispatch() {
+    setLoading(true);
+    const unas=leads.filter(l=>!l.assigned_to&&l.statut==="en attente");
+    if(unas.length===0){notify("Aucun lead a dispatcher","err");setLoading(false);return;}
+    let count=0;
+    for(const lead of unas){
+      const travaux=(lead.travaux||"").toLowerCase();
+      const creneaux=JSON.parse(lead.creneaux||"[]");
+      const nbArtisans=parseInt((lead.nb_artisans||"3"))||3;
+      const matching=pros.filter(p=>{
+        if(p.statut_paiement==="bloque")return false;
+        if((p.rdv_restants||0)<=0)return false;
+        if(!p.specialites||p.specialites.length===0)return true;
+        const specOk=p.specialites.some(s=>travaux.includes(s.toLowerCase().split(" ")[0]));if(!specOk)return false;if(p.lat&&lead.lat){const dist=haversine(p.lat,p.lon,lead.lat,lead.lon);const rayon=parseInt((p.rayon||"50").replace(/[^0-9]/g,""));if(dist>rayon)return false;}return true;;
+      });
       const avail=matching;
-      const toSend=avail.slice(0,Math.min(nbArtisans,avail.length));
-      for(let i=0;i<toSend.length;i++){
-        const pro=toSend[i];
-        const creneau=creneaux[i%Math.max(creneaux.length,1)]||{label:"Sur RDV"};
-        await sb.patch("leads",lead.id,{assigned_to:pro.id,statut:"dispatche",heure:creneau.label});
-        await sb.patch("profiles",pro.id,{rdv_restants:Math.max(0,(pro.rdv_restants||1)-1)});
-        count++;
-      }
-    }
-    await loadData();
-    notify(count+" RDV dispatche(s)");
-    setLoading(false);
-  }
+      const toSend=avail.slice(0,Math.min(nbArtisans,avail.length));
+      for(let i=0;i<toSend.length;i++){
+        const pro=toSend[i];
+        const creneau=creneaux[i%Math.max(creneaux.length,1)]||{label:"Sur RDV"};
+        await sb.patch("leads",lead.id,{assigned_to:pro.id,statut:"dispatche",heure:creneau.label});
+        await sb.patch("profiles",pro.id,{rdv_restants:Math.max(0,(pro.rdv_restants||1)-1)});
+        count++;
+      }
+    }
+    await loadData();
+    notify(count+" RDV dispatche(s)");
+    setLoading(false);
+  }
 
   const pros = profiles.filter(p => p.role === "pro");
   const parts = profiles.filter(p => p.role === "part");
   const unassigned = leads.filter(l => !l.assigned_to);
   const impayes = pros.filter(p => p.statut_paiement === "impaye" || p.statut_paiement === "expire");
+
+  const payesLeads = leads.filter(l => l.paiement_statut === "paye");
+  const caTotal = payesLeads.reduce((s,l)=>s+(parseFloat(l.prix_final)||0),0);
+  const caClickfix = caTotal*0.15;
+  const caArtisans = caTotal*0.85;
+  const revenueByPro = pros.map(p=>{
+    const mine = payesLeads.filter(l=>l.assigned_to===p.id);
+    const t = mine.reduce((s,l)=>s+(parseFloat(l.prix_final)||0),0);
+    return {...p, nbInterventions:mine.length, caTotal:t, caNet:t*0.85};
+  }).sort((a,b)=>b.caTotal-a.caTotal);
+
+  const STATUS_MAP = {
+    paye:["Paye","#22c55e"],
+    en_attente_validation:["A valider","#a855f7"],
+    en_litige:["Litige","#ef4444"],
+    termine:["Termine","#38bdf8"],
+    en_cours:["En cours","#FF6F00"],
+    arrive:["Arrive","#FF6F00"],
+    en_route:["En route","#38bdf8"],
+    confirme:["Confirme","#22c55e"],
+    dispatche:["Dispatche","#FBC005"],
+    en_attente:["En attente","#FBC005"],
+  };
+  function getStatusKey(l){
+    if(l.paiement_statut==="paye")return"paye";
+    if(l.paiement_statut==="en_attente_validation")return"en_attente_validation";
+    if(l.paiement_statut==="en_litige")return"en_litige";
+    if(l.artisan_statut==="termine")return"termine";
+    if(l.artisan_statut==="en_cours")return"en_cours";
+    if(l.artisan_statut==="arrive")return"arrive";
+    if(l.artisan_statut==="en_route")return"en_route";
+    if(l.artisan_statut==="confirme")return"confirme";
+    if(l.statut==="dispatche")return"dispatche";
+    return"en_attente";
+  }
+  function StatusBadge({l}){
+    const key=getStatusKey(l);
+    const pair=STATUS_MAP[key]||["En attente","#FBC005"];
+    const label=pair[0],color=pair[1];
+    return <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 99, background: color+"26", color }}>{label}</span>;
+  }
+  const STATUS_FILTERS = [["all","Tous"],["en_attente","En attente"],["dispatche","Dispatche"],["confirme","Confirme"],["en_route","En route"],["arrive","Arrive"],["en_cours","En cours"],["termine","Termine"],["en_attente_validation","A valider"],["paye","Paye"],["en_litige","Litige"]];
+  const filteredLeads = leadFilter==="all" ? leads : leads.filter(l=>getStatusKey(l)===leadFilter);
 
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
@@ -152,6 +197,7 @@ export default function App() {
     { id: "dashboard", label: "Dashboard" },
     { id: "artisans",  label: "Artisans (" + pros.length + ")" },
     { id: "leads",     label: "Leads (" + leads.length + ")" },
+    { id: "ca",        label: "CA & Revenus" },
     { id: "impayes",   label: "Impayes (" + impayes.length + ")" },
   ];
 
@@ -253,9 +299,15 @@ export default function App() {
           {tab === "leads" && (
             <div>
               <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Leads ({leads.length})</h2>
-              {leads.length === 0
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:18}}>
+                {STATUS_FILTERS.map(pair=>{
+                  const k=pair[0],label=pair[1];
+                  return (<button key={k} onClick={()=>setLeadFilter(k)} style={{padding:"6px 12px",borderRadius:99,border:"1px solid "+(leadFilter===k?"rgba(255,111,0,0.4)":"rgba(255,255,255,0.1)"),background:leadFilter===k?"rgba(255,111,0,0.15)":"rgba(255,255,255,0.03)",color:leadFilter===k?"#FF6F00":"rgba(255,255,255,0.4)",fontSize:12,fontWeight:600,fontFamily:"Outfit,sans-serif",cursor:"pointer"}}>{label}</button>);
+                })}
+              </div>
+              {filteredLeads.length === 0
                 ? <div style={{ ...card, textAlign: "center", padding: 40, color: "rgba(255,255,255,0.3)" }}>Aucun lead</div>
-                : leads.map(l => (
+                : filteredLeads.map(l => (
                   <div key={l.id} style={{...card,cursor:"pointer"}} onClick={()=>setSelLead(l)}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                       <div>
@@ -266,9 +318,7 @@ export default function App() {
                         <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>{new Date(l.created_at).toLocaleDateString("fr-FR")}</div>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 99, background: l.assigned_to ? "rgba(34,197,94,0.15)" : "rgba(251,192,5,0.15)", color: l.assigned_to ? "#22c55e" : "#FBC005" }}>
-                          {l.assigned_to ? "Assigne" : "En attente"}
-                        </span>
+                        <StatusBadge l={l}/>
                         {!l.assigned_to && pros.filter(p => p.statut_paiement !== "bloque" && (p.rdv_restants || 0) > 0).length > 0 && (
                           <select onChange={e => e.target.value && assignLead(l.id, e.target.value)} style={{ ...inp, width: "auto", fontSize: 12, padding: "6px 10px" }} defaultValue="">
                             <option value="">Assigner a...</option>
@@ -284,7 +334,46 @@ export default function App() {
               }
             </div>
           )}
-          {selLead && <div style={{position:"fixed",top:0,right:0,width:420,height:"100vh",background:"#0d0f1a",borderLeft:"1px solid rgba(255,255,255,0.08)",zIndex:9999,overflow:"auto",padding:24}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:20,alignItems:"center"}}><h3 style={{color:"#FF6F00",margin:0,fontSize:18}}>Detail du lead</h3><button onClick={()=>setSelLead(null)} style={{background:"transparent",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>x</button></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>CLIENT</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.client_nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.adresse} {selLead.ville} {selLead.code_postal}</p></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>DEMANDE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.travaux}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Surface : {selLead.surface}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Budget : {selLead.budget}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Artisans : {selLead.nb_artisans}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Statut : {selLead.statut}</p></div>{selLead.assigned_to&&(()=>{const p=pros.find(x=>x.id===selLead.assigned_to);return p?<div style={{background:"rgba(34,197,94,0.07)",borderRadius:10,padding:14,border:"1px solid rgba(34,197,94,0.2)"}}><div style={{color:"#22c55e",fontSize:11,fontWeight:700,marginBottom:8}}>ARTISAN ASSIGNE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{p.prenom} {p.nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.entreprise}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>SIRET : {p.siret}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Zone : {p.ville_intervention} ({p.rayon})</p></div>:null;})()}</div>}
+
+          {tab === "ca" && (
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Chiffre d affaires</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 24 }}>
+                <div style={{...card,marginBottom:0}}>
+                  <div style={{fontSize:26,fontWeight:900,color:"#22c55e"}}>{caTotal.toFixed(0)} EUR</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginTop:4}}>CA total plateforme</div>
+                </div>
+                <div style={{...card,marginBottom:0}}>
+                  <div style={{fontSize:26,fontWeight:900,color:"#FF6F00"}}>{caClickfix.toFixed(0)} EUR</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginTop:4}}>Revenus Click&fix (15%)</div>
+                </div>
+                <div style={{...card,marginBottom:0}}>
+                  <div style={{fontSize:26,fontWeight:900,color:"#38bdf8"}}>{caArtisans.toFixed(0)} EUR</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.35)",marginTop:4}}>Verse aux artisans (85%)</div>
+                </div>
+              </div>
+              <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.4)",marginBottom:12,textTransform:"uppercase",letterSpacing:1}}>CA par artisan</div>
+              {revenueByPro.filter(p=>p.caTotal>0).length === 0
+                ? <div style={{ ...card, textAlign: "center", padding: 40, color: "rgba(255,255,255,0.3)" }}>Aucune intervention payee pour l instant</div>
+                : revenueByPro.filter(p=>p.caTotal>0).map(p => (
+                  <div key={p.id} style={card}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 15 }}>{p.prenom} {p.nom}</div>
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 4 }}>{p.entreprise} - {p.nbInterventions} intervention(s) payee(s)</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:18,fontWeight:900,color:"#22c55e"}}>{p.caTotal.toFixed(0)} EUR</div>
+                        <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>Net artisan: {p.caNet.toFixed(0)} EUR</div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {selLead && <div style={{position:"fixed",top:0,right:0,width:420,height:"100vh",background:"#0d0f1a",borderLeft:"1px solid rgba(255,255,255,0.08)",zIndex:9999,overflow:"auto",padding:24}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:20,alignItems:"center"}}><h3 style={{color:"#FF6F00",margin:0,fontSize:18}}>Detail du lead</h3><button onClick={()=>setSelLead(null)} style={{background:"transparent",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>x</button></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>CLIENT</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.client_nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.adresse} {selLead.ville} {selLead.code_postal}</p></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>DEMANDE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.travaux}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Surface : {selLead.surface}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Budget : {selLead.budget}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Artisans : {selLead.nb_artisans}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Statut : {selLead.statut}</p></div>{selLead.assigned_to&&(()=>{const p=pros.find(x=>x.id===selLead.assigned_to);return p?<div style={{background:"rgba(34,197,94,0.07)",borderRadius:10,padding:14,border:"1px solid rgba(34,197,94,0.2)"}}><div style={{color:"#22c55e",fontSize:11,fontWeight:700,marginBottom:8}}>ARTISAN ASSIGNE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{p.prenom} {p.nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.entreprise}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>SIRET : {p.siret}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Zone : {p.ville_intervention} ({p.rayon})</p></div>:null;})()}</div>}
           {tab === "impayes" && (
             <div>
               <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Impayes ({impayes.length})</h2>
