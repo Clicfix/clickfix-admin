@@ -38,6 +38,21 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [selLead, setSelLead] = useState(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refunding, setRefunding] = useState(false);
+  async function doRefund(lead){
+    if(!lead.payment_intent_id){ notify("Pas de payment_intent_id sur ce lead","err"); return; }
+    setRefunding(true);
+    try{
+      const body = { payment_intent_id: lead.payment_intent_id };
+      if(refundAmount) body.amount = parseFloat(refundAmount);
+      const r = await fetch("https://www.click-fix.fr/api/refund-payment", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+      const d = await r.json();
+      if(d.success){ notify("Remboursement effectue: "+(d.amount/100)+" EUR"); setRefundAmount(""); }
+      else{ notify("Erreur: "+(d.error||"inconnue"),"err"); }
+    }catch(e){ notify("Erreur: "+e.message,"err"); }
+    setRefunding(false);
+  }
   const [leadFilter, setLeadFilter] = useState("all");
 
   function notify(msg, type) {
@@ -411,7 +426,16 @@ export default function App() {
             </div>
           )}
 
-          {selLead && <div style={{position:"fixed",top:0,right:0,width:420,height:"100vh",background:"#0d0f1a",borderLeft:"1px solid rgba(255,255,255,0.08)",zIndex:9999,overflow:"auto",padding:24}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:20,alignItems:"center"}}><h3 style={{color:"#FF6F00",margin:0,fontSize:18}}>Detail du lead</h3><button onClick={()=>setSelLead(null)} style={{background:"transparent",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>x</button></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>CLIENT</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.client_nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.adresse} {selLead.ville} {selLead.code_postal}</p></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>DEMANDE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.travaux}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Surface : {selLead.surface}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Budget : {selLead.budget}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Artisans : {selLead.nb_artisans}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Statut : {selLead.statut}</p></div>{selLead.assigned_to&&(()=>{const p=pros.find(x=>x.id===selLead.assigned_to);return p?<div style={{background:"rgba(34,197,94,0.07)",borderRadius:10,padding:14,border:"1px solid rgba(34,197,94,0.2)"}}><div style={{color:"#22c55e",fontSize:11,fontWeight:700,marginBottom:8}}>ARTISAN ASSIGNE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{p.prenom} {p.nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.entreprise}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>SIRET : {p.siret}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Zone : {p.ville_intervention} ({p.rayon})</p></div>:null;})()}</div>}
+          {selLead && <div style={{position:"fixed",top:0,right:0,width:420,height:"100vh",background:"#0d0f1a",borderLeft:"1px solid rgba(255,255,255,0.08)",zIndex:9999,overflow:"auto",padding:24}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:20,alignItems:"center"}}><h3 style={{color:"#FF6F00",margin:0,fontSize:18}}>Detail du lead</h3><button onClick={()=>setSelLead(null)} style={{background:"transparent",border:"none",color:"#fff",fontSize:22,cursor:"pointer"}}>x</button></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>CLIENT</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.client_nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.client_email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{selLead.adresse} {selLead.ville} {selLead.code_postal}</p></div><div style={{background:"rgba(255,255,255,0.04)",borderRadius:10,padding:14,marginBottom:12}}><div style={{color:"#FF6F00",fontSize:11,fontWeight:700,marginBottom:8}}>DEMANDE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{selLead.travaux}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Surface : {selLead.surface}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Budget : {selLead.budget}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Artisans : {selLead.nb_artisans}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Statut : {selLead.statut}</p></div>{selLead.assigned_to&&(()=>{const p=pros.find(x=>x.id===selLead.assigned_to);return p?<div style={{background:"rgba(34,197,94,0.07)",borderRadius:10,padding:14,border:"1px solid rgba(34,197,94,0.2)"}}><div style={{color:"#22c55e",fontSize:11,fontWeight:700,marginBottom:8}}>ARTISAN ASSIGNE</div><p style={{color:"#fff",margin:"4px 0",fontSize:13}}>{p.prenom} {p.nom}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.entreprise}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.tel}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>{p.email}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>SIRET : {p.siret}</p><p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0",fontSize:12}}>Zone : {p.ville_intervention} ({p.rayon})</p></div>:null;})()}
+          {selLead.paiement_statut==="paye"&&selLead.payment_intent_id&&(
+            <div style={{background:"rgba(239,68,68,0.07)",borderRadius:10,padding:14,border:"1px solid rgba(239,68,68,0.2)",marginTop:12}}>
+              <div style={{color:"#ef4444",fontSize:11,fontWeight:700,marginBottom:8}}>REMBOURSEMENT</div>
+              <p style={{color:"rgba(255,255,255,0.5)",margin:"4px 0 10px",fontSize:12}}>Montant paye: {selLead.prix_final} EUR. Laisser vide pour un remboursement total.</p>
+              <input type="number" placeholder={"Montant en EUR (vide = total: "+selLead.prix_final+")"} value={refundAmount} onChange={e=>setRefundAmount(e.target.value)} style={{ background: "rgba(255,255,255,0.06)", border: "1.5px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 14, fontFamily: "Outfit,sans-serif", width: "100%", outline: "none", marginBottom: 10, boxSizing:"border-box" }}/>
+              <button onClick={()=>doRefund(selLead)} disabled={refunding} style={{ padding: "8px 16px", borderRadius: 8, border: "none", cursor: refunding?"default":"pointer", fontFamily: "Outfit,sans-serif", fontWeight: 700, fontSize: 13, background: "rgba(239,68,68,0.15)", color: "#ef4444", width:"100%" }}>{refunding?"Remboursement en cours...":"Rembourser"}</button>
+            </div>
+          )}
+        </div>}
           {tab === "impayes" && (
             <div>
               <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Impayes ({impayes.length})</h2>
