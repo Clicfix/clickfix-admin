@@ -126,6 +126,29 @@ export default function App() {
     return {...p, nbInterventions:mine.length, caTotal:t, caNet:t*0.85};
   }).sort((a,b)=>b.caTotal-a.caTotal);
 
+  function getReliability(proId){
+    const mine = leads.filter(l=>l.assigned_to===proId);
+    if(mine.length===0)return null;
+    const completed = mine.filter(l=>l.paiement_statut==="paye"||l.artisan_statut==="termine").length;
+    const litiges = mine.filter(l=>l.paiement_statut==="en_litige").length;
+    const nonRepondu = mine.filter(l=>l.statut==="dispatche"&&!l.artisan_statut).length;
+    const notes = mine.filter(l=>l.note_client).map(l=>l.note_client);
+    const total = mine.length;
+    const tauxCompletion = Math.round((completed/total)*100);
+    const tauxLitige = Math.round((litiges/total)*100);
+    const tauxReactivite = Math.round(((total-nonRepondu)/total)*100);
+    const noteMoyenne = notes.length>0 ? (notes.reduce((s,n)=>s+n,0)/notes.length) : null;
+    const satisfactionPct = noteMoyenne!==null ? Math.round((noteMoyenne/5)*100) : null;
+    let score;
+    if(satisfactionPct!==null){
+      score = Math.round(tauxCompletion*0.35 + (100-tauxLitige)*0.25 + tauxReactivite*0.15 + satisfactionPct*0.25);
+    }else{
+      score = Math.round(tauxCompletion*0.5 + (100-tauxLitige)*0.3 + tauxReactivite*0.2);
+    }
+    return { score, tauxCompletion, tauxLitige, tauxReactivite, total, noteMoyenne, nbNotes:notes.length };
+  }
+  function scoreColor(score){ if(score>=80) return "#22c55e"; if(score>=50) return "#FBC005"; return "#ef4444"; }
+
   const STATUS_MAP = {
     paye:["Paye","#22c55e"],
     en_attente_validation:["A valider","#a855f7"],
@@ -279,6 +302,21 @@ export default function App() {
                             {p.specialites.map(s => <span key={s} style={{ fontSize: 11, background: "rgba(255,111,0,0.1)", color: "#FF6F00", border: "1px solid rgba(255,111,0,0.2)", borderRadius: 6, padding: "2px 8px" }}>{s}</span>)}
                           </div>
                         )}
+                        {(()=>{ const rel=getReliability(p.id); if(!rel)return <div style={{fontSize:11,color:"rgba(255,255,255,0.2)",marginTop:8}}>Aucune intervention encore</div>; return (
+                          <div style={{marginTop:10,padding:"10px 12px",background:"rgba(255,255,255,0.03)",borderRadius:10,border:"1px solid rgba(255,255,255,0.06)"}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                              <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.4)",letterSpacing:1,textTransform:"uppercase"}}>Score de fiabilite</span>
+                              <span style={{fontSize:13,fontWeight:900,color:scoreColor(rel.score)}}>{rel.score}/100</span>
+                            </div>
+                            <div style={{display:"flex",gap:14,fontSize:11,color:"rgba(255,255,255,0.35)",flexWrap:"wrap"}}>
+                              <span>Completion: <strong style={{color:"#fff"}}>{rel.tauxCompletion}%</strong></span>
+                              <span>Litiges: <strong style={{color:rel.tauxLitige>0?"#ef4444":"#fff"}}>{rel.tauxLitige}%</strong></span>
+                              <span>Reactivite: <strong style={{color:"#fff"}}>{rel.tauxReactivite}%</strong></span>
+                              {rel.noteMoyenne!==null&&<span>Note client: <strong style={{color:"#FBC005"}}>{rel.noteMoyenne.toFixed(1)}/5</strong> ({rel.nbNotes})</span>}
+                              <span>({rel.total} intervention{rel.total>1?"s":""})</span>
+                            </div>
+                          </div>
+                        ); })()}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
                         <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 99, background: p.statut_paiement === "bloque" ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)", color: p.statut_paiement === "bloque" ? "#ef4444" : "#22c55e" }}>
